@@ -1,62 +1,41 @@
+const { Pool } = require('pg');
 
-const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-const fs = require('fs');
-
-const app = express();
-const DATA_FILE = './appointments.json';
-
-// Middleware
-app.use(bodyParser.json());
-app.use(cors());
-
-// Load and save functions
-function loadAppointments() {
-    if (fs.existsSync(DATA_FILE)) {
-        const data = fs.readFileSync(DATA_FILE);
-        return JSON.parse(data);
-    }
-    return [];
-}
-
-function saveAppointments(appointments) {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(appointments, null, 2));
-}
-
-// API Endpoints
-app.get('/api/appointments', (req, res) => {
-    const appointments = loadAppointments();
-    res.json(appointments);
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL || 'CONNECTION_STRING_HERE',
+    ssl: { rejectUnauthorized: false }
 });
 
-app.post('/api/appointments', (req, res) => {
-    const appointment = req.body;
-    const appointments = loadAppointments();
-    appointment.id = Date.now();
-    appointments.push(appointment);
-    saveAppointments(appointments);
-    res.status(201).json({ message: 'Appointment added', appointment });
+// Vytvoření tabulky při spuštění
+pool.query(`
+    CREATE TABLE IF NOT EXISTS appointments (
+        id SERIAL PRIMARY KEY,
+        name TEXT,
+        address TEXT,
+        note TEXT,
+        date DATE,
+        time TIME
+    );
+`);
+
+// Získání všech schůzek
+app.get('/api/appointments', async (req, res) => {
+    const result = await pool.query('SELECT * FROM appointments');
+    res.json(result.rows);
 });
 
-app.delete('/api/appointments/:id', (req, res) => {
-    const id = parseInt(req.params.id);
-    let appointments = loadAppointments();
-    appointments = appointments.filter(appt => appt.id !== id);
-    saveAppointments(appointments);
-    res.json({ message: 'Appointment deleted' });
+// Přidání nové schůzky
+app.post('/api/appointments', async (req, res) => {
+    const { name, address, note, date, time } = req.body;
+    const result = await pool.query(
+        'INSERT INTO appointments (name, address, note, date, time) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [name, address, note, date, time]
+    );
+    res.status(201).json(result.rows[0]);
 });
 
-app.put('/api/appointments/:id', (req, res) => {
-    const id = parseInt(req.params.id);
-    const updatedAppointment = req.body;
-    let appointments = loadAppointments();
-    appointments = appointments.map(appt => appt.id === id ? { ...appt, ...updatedAppointment } : appt);
-    saveAppointments(appointments);
-    res.json({ message: 'Appointment updated', updatedAppointment });
-});
-
-// Start server
-app.listen(3000, () => {
-    console.log('Server running on http://localhost:3000');
+// Smazání schůzky
+app.delete('/api/appointments/:id', async (req, res) => {
+    const { id } = req.params;
+    await pool.query('DELETE FROM appointments WHERE id = $1', [id]);
+    res.json({ message: 'Schůzka smazána' });
 });
