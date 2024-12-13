@@ -1,5 +1,5 @@
 
-const API_URL = 'http://localhost:3000/api/appointments';
+const API_URL = 'https://servis-6h2v.onrender.com';
 const form = document.getElementById('appointmentForm');
 const tableBody = document.querySelector('#appointmentTable tbody');
 let appointments = [];
