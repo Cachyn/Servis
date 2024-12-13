@@ -1,0 +1,51 @@
+
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plánovací kalendář</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Plánovací kalendář</h1>
+
+        <form id="appointmentForm">
+            <label for="name">Jméno zákazníka:</label>
+            <input type="text" id="name" required>
+
+            <label for="address">Adresa:</label>
+            <input type="text" id="address" required>
+
+            <label for="note">Poznámka:</label>
+            <textarea id="note" rows="3" required></textarea>
+
+            <label for="date">Datum:</label>
+            <input type="date" id="date" required>
+
+            <label for="time">Čas:</label>
+            <input type="time" id="time" required>
+
+            <button type="submit" class="btn">Přidat schůzku</button>
+        </form>
+
+        <h2>Naplánované schůzky</h2>
+        <table id="appointmentTable">
+            <thead>
+                <tr>
+                    <th>Čas</th>
+                    <th>Jméno</th>
+                    <th>Adresa</th>
+                    <th>Poznámka</th>
+                    <th>Akce</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Schůzky budou přidány dynamicky -->
+            </tbody>
+        </table>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
