@@ -1,3 +1,4 @@
+
 body {
     font-family: Arial, sans-serif;
     margin: 20px;
@@ -5,7 +6,7 @@ body {
 }
 
 .container {
-    max-width: 800px;
+    max-width: 600px;
     margin: auto;
 }
 
@@ -21,7 +22,7 @@ label {
     margin-bottom: 8px;
 }
 
-input, textarea, select {
+input, textarea {
     width: 100%;
     padding: 8px;
     margin-bottom: 10px;
@@ -54,4 +55,8 @@ table th {
 
 .btn.delete {
     background-color: red;
+}
+
+.btn.edit {
+    background-color: orange;
 }
