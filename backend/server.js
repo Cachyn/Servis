@@ -1,95 +1,69 @@
 const express = require('express');
-const bodyParser = require('body-parser');
-const { Pool } = require('pg');
+const { Octokit } = require('@octokit/rest');
+require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+app.use(express.json());
 
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'CONNECTION_STRING_HERE',
-    ssl: { rejectUnauthorized: false }
+const octokit = new Octokit({
+    auth: process.env.GITHUB_TOKEN
 });
 
-// Middleware
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
-// Funkce pro přidání chybějících sloupců do existující tabulky
-async function addMissingColumns() {
-    const columnsToAdd = [
-        { name: 'phone', type: 'TEXT' },
-        { name: 'appliance', type: 'TEXT' },
-        { name: 'technician', type: 'TEXT' }
-    ];
-
-    for (const column of columnsToAdd) {
-        try {
-            await pool.query(`ALTER TABLE appointments ADD COLUMN IF NOT EXISTS ${column.name} ${column.type};`);
-        } catch (err) {
-            console.error(`Chyba při přidávání sloupce ${column.name}:`, err);
-        }
-    }
-}
-
-// Vytvoření tabulky při spuštění, pokud neexistuje
-pool.query(`
-    CREATE TABLE IF NOT EXISTS appointments (
-        id SERIAL PRIMARY KEY,
-        name TEXT,
-        address TEXT,
-        phone TEXT,
-        appliance TEXT,
-        note TEXT,
-        date DATE,
-        time TIME,
-        technician TEXT
-    );
-`)
-    .then(() => addMissingColumns())
-    .catch(err => console.error('Chyba při vytváření tabulky:', err));
-
-// Získání všech schůzek
-app.get('/api/appointments', async (req, res) => {
-    try {
-        const result = await pool.query('SELECT * FROM appointments');
-        res.json(result.rows);
-    } catch (err) {
-        console.error('Chyba při získávání schůzek:', err);
-        res.status(500).json({ error: 'Chyba při získávání schůzek' });
-    }
-});
+const OWNER = process.env.GITHUB_OWNER;
+const REPO = process.env.GITHUB_REPO;
 
 // Přidání nové schůzky
 app.post('/api/appointments', async (req, res) => {
     const { name, address, phone, appliance, note, date, time, technician } = req.body;
 
+    // Vytvoření souboru JSON s aktuální schůzkou
+    const fileName = `appointments/appointment_${Date.now()}.json`;
+    const content = Buffer.from(JSON.stringify({ name, address, phone, appliance, note, date, time, technician }, null, 2)).toString('base64');
+
     try {
-        const result = await pool.query(
-            `INSERT INTO appointments (name, address, phone, appliance, note, date, time, technician)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-            [name, address, phone, appliance, note, date, time, technician]
+        await octokit.repos.createOrUpdateFileContents({
+            owner: OWNER,
+            repo: REPO,
+            path: fileName,
+            message: `Nová schůzka: ${name}`,
+            content
+        });
+        res.status(201).json({ message: 'Schůzka uložena na GitHub.' });
+    } catch (error) {
+        console.error('Chyba při ukládání na GitHub:', error);
+        res.status(500).json({ message: 'Nepodařilo se uložit schůzku.' });
+    }
+});
+
+// Načtení všech schůzek
+app.get('/api/appointments', async (req, res) => {
+    try {
+        const response = await octokit.repos.getContent({
+            owner: OWNER,
+            repo: REPO,
+            path: 'appointments'
+        });
+
+        const files = response.data;
+        const appointments = await Promise.all(
+            files.map(async (file) => {
+                const fileData = await octokit.repos.getContent({
+                    owner: OWNER,
+                    repo: REPO,
+                    path: file.path
+                });
+
+                const content = Buffer.from(fileData.data.content, 'base64').toString();
+                return JSON.parse(content);
+            })
         );
-        res.status(201).json(result.rows[0]);
-    } catch (err) {
-        console.error('Chyba při ukládání schůzky:', err);
-        res.status(500).json({ error: 'Chyba při ukládání schůzky' });
+
+        res.json(appointments);
+    } catch (error) {
+        console.error('Chyba při načítání schůzek:', error);
+        res.status(500).json({ message: 'Nepodařilo se načíst schůzky.' });
     }
 });
 
-// Smazání schůzky
-app.delete('/api/appointments/:id', async (req, res) => {
-    const { id } = req.params;
-
-    try {
-        await pool.query('DELETE FROM appointments WHERE id = $1', [id]);
-        res.json({ message: 'Schůzka smazána' });
-    } catch (err) {
-        console.error('Chyba při mazání schůzky:', err);
-        res.status(500).json({ error: 'Chyba při mazání schůzky' });
-    }
-});
-
-// Spuštění serveru
-app.listen(PORT, () => {
-    console.log(`Server běží na http://localhost:${PORT}`);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server běží na portu ${PORT}`));
