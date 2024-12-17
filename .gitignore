@@ -1,0 +1,2 @@
+# Ignorování souborů .env
+backend/*.env
