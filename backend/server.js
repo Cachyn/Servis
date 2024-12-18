@@ -1,101 +1,78 @@
-// Import potřebných knihoven
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
-const { Octokit } = require('@octokit/rest');
+const { Octokit } = require('@octokit/rest'); // Import Octokit pro připojení k GitHubu
 
-// Vytvoření aplikace Express
+// Nastavení aplikace Express
 const app = express();
-const port = process.env.PORT || 3000;
+app.use(express.json());  // Pro parsování JSON těla požadavků
 
-// Middleware pro parsování JSON těla požadavků
-app.use(express.json());
-
-// Proměnné pro GitHub - ZDE DOPLŇTE své údaje
-const OWNER = process.env.GITHUB_OWNER || 'Cachyn@seznam.cz';  // Uživatelské jméno na GitHubu
-const REPO = process.env.GITHUB_REPO || 'Servis';    // Název repozitáře na GitHubu
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;      // GitHub token pro přístup
-
-// Inicializace Octokit pro komunikaci s GitHubem
+// Nastavení pro připojení k GitHubu prostřednictvím Octokit
 const octokit = new Octokit({
-  auth: GITHUB_TOKEN,
+    auth: process.env.GITHUB_TOKEN // Token by měl být nastaven v prostředí na Render.com
 });
 
-// Endpoint pro testování připojení k API a zobrazení nastavení
-app.get('/api/debug', (req, res) => {
-  res.json({
-    owner: OWNER,
-    repo: REPO,
-    token: GITHUB_TOKEN ? 'Token je nastaven' : 'Token není nastaven',
-  });
-});
+// **VYPLŇTE**: Vaše GitHub uživatelské jméno (doplňte přímo na Render.com jako environment variable)
+const OWNER = process.env.GITHUB_OWNER || 'Cachyn@seznam.cz'; // Vaše GitHub uživatelské jméno
 
-// Endpoint pro získání seznamu schůzek z GitHubu
-app.get('/api/appointments', async (req, res) => {
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner: OWNER,
-      repo: REPO,
-      path: 'appointments.json', // Cesta k souboru na GitHubu
-    });
+// **VYPLŇTE**: Název vašeho GitHub repozitáře (doplňte přímo na Render.com jako environment variable)
+const REPO = process.env.GITHUB_REPO || 'Servis';  // Název repozitáře
 
-    const content = Buffer.from(data.content, 'base64').toString('utf-8');
-    res.json(JSON.parse(content)); // Vrátí obsah appointments.json
-  } catch (error) {
-    console.error('Chyba při získávání dat:', error);
-    res.status(500).send('Chyba při získávání schůzek.');
-  }
-});
-
-// Endpoint pro přidání nové schůzky
+// POST endpoint pro přidání nové schůzky
 app.post('/api/appointments', async (req, res) => {
-  const { name, address, phone, appliance, note, date, time, technician } = req.body;
+    const { name, address, phone, appliance, note, date, time, technician } = req.body;
 
-  const newAppointment = {
-    name,
-    address,
-    phone,
-    appliance,
-    note,
-    date,
-    time,
-    technician,
-    id: Date.now(), // Unikátní ID na základě aktuálního času
-  };
+    // Určení názvu souboru s aktuálním časovým razítkem
+    const fileName = `appointments/appointment_${Date.now()}.json`;  // Cesta k souboru
+    const content = Buffer.from(JSON.stringify({ name, address, phone, appliance, note, date, time, technician }, null, 2)).toString('base64');
 
-  try {
-    // Získání existujících schůzek
-    const { data } = await octokit.repos.getContent({
-      owner: OWNER,
-      repo: REPO,
-      path: 'appointments.json',
-    });
-
-    const content = Buffer.from(data.content, 'base64').toString('utf-8');
-    const appointments = JSON.parse(content);
-
-    // Přidání nové schůzky do existujících
-    appointments.push(newAppointment);
-
-    // Uložení aktualizovaného seznamu schůzek zpět na GitHub
-    const fileContent = Buffer.from(JSON.stringify(appointments, null, 2), 'utf-8').toString('base64');
-
-    await octokit.repos.createOrUpdateFileContents({
-      owner: OWNER,
-      repo: REPO,
-      path: 'appointments.json',
-      message: `Nová schůzka: ${name}`,
-      content: fileContent,
-    });
-
-    res.json({ message: 'Appointment added', appointment: newAppointment });
-  } catch (error) {
-    console.error('Chyba při přidávání schůzky:', error);
-    res.status(500).send('Chyba při přidávání schůzky.');
-  }
+    try {
+        // Vytvoření nebo aktualizace souboru v repozitáři na GitHubu
+        await octokit.repos.createOrUpdateFileContents({
+            owner: OWNER,  // Vaše GitHub uživatelské jméno
+            repo: REPO,    // Název repozitáře
+            path: fileName,  // Cesta k souboru v repozitáři
+            message: `Nová schůzka: ${name}`,  // Zpráva pro commit
+            content: content  // Obsah souboru (schůzka ve formátu JSON)
+        });
+        res.status(201).json({ message: 'Schůzka uložena na GitHub.' });
+    } catch (error) {
+        console.error('Chyba při ukládání na GitHub:', error);
+        res.status(500).json({ message: 'Nepodařilo se uložit schůzku.' });
+    }
 });
 
-// Spuštění serveru
-app.listen(port, () => {
-  console.log(`Server běží na portu ${port}`);
+// GET endpoint pro načítání všech schůzek
+app.get('/api/appointments', async (req, res) => {
+    try {
+        // Načítání obsahu složky appointments z repozitáře GitHub
+        const response = await octokit.repos.getContent({
+            owner: OWNER,  // Vaše GitHub uživatelské jméno
+            repo: REPO,    // Název repozitáře
+            path: 'appointments'  // Cesta ke složce ve repozitáři (pokud existuje)
+        });
+
+        // Načítání jednotlivých souborů a jejich obsahu
+        const files = response.data;
+        const appointments = await Promise.all(
+            files.map(async (file) => {
+                const fileData = await octokit.repos.getContent({
+                    owner: OWNER,  // Vaše GitHub uživatelské jméno
+                    repo: REPO,    // Název repozitáře
+                    path: file.path  // Cesta k souboru
+                });
+
+                // Dekódování base64 obsahu a parsování JSON
+                const content = Buffer.from(fileData.data.content, 'base64').toString();
+                return JSON.parse(content);
+            })
+        );
+
+        res.json(appointments);  // Odeslání seznamu schůzek zpět jako JSON
+    } catch (error) {
+        console.error('Chyba při načítání schůzek:', error);
+        res.status(500).json({ message: 'Nepodařilo se načíst schůzky.' });
+    }
 });
+
+// Spuštění serveru na portu (buď na Render.com nebo lokálně)
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server běží na portu ${PORT}`));
