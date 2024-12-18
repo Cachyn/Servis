@@ -11,7 +11,7 @@ const octokit = new Octokit({
 });
 
 // Konstanty z environment proměnných
-const OWNER = process.env.GITHUB_OWNER; // Cachyn
+const OWNER = process.env.GITHUB_OWNER; // Cachyn@seznam.cz
 const REPO = process.env.GITHUB_REPO; // Servis
 
 // Přidání nové schůzky
