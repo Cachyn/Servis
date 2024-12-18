@@ -12,7 +12,7 @@ const port = process.env.PORT || 3000;
 app.use(express.json());
 
 // Proměnné pro GitHub - ZDE DOPLŇTE své údaje
-const OWNER = process.env.GITHUB_OWNER || 'Cachyn';  // Uživatelské jméno na GitHubu
+const OWNER = process.env.GITHUB_OWNER || 'Cachyn@seznam.cz';  // Uživatelské jméno na GitHubu
 const REPO = process.env.GITHUB_REPO || 'Servis';    // Název repozitáře na GitHubu
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;      // GitHub token pro přístup
 
