@@ -1,3 +1,11 @@
+app.get('/api/debug', (req, res) => {
+    res.json({
+        owner: OWNER,
+        repo: REPO,
+        token: process.env.GITHUB_TOKEN ? 'Token nastaven' : 'Token nenastaven'
+    });
+});
+
 console.log('GitHub zápis začal: ', fileName);
 console.log('Obsah, který ukládáme:', JSON.stringify({ name, address, phone, appliance, note, date, time, technician }));
 
