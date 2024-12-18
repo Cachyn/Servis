@@ -1,3 +1,6 @@
+console.log('GitHub zápis začal: ', fileName);
+console.log('Obsah, který ukládáme:', JSON.stringify({ name, address, phone, appliance, note, date, time, technician }));
+
 require('dotenv').config();
 const express = require('express');
 const { Octokit } = require('@octokit/rest');
