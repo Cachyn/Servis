@@ -1,34 +1,47 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const { Octokit } = require('@octokit/rest');
-require('dotenv').config();
 
 const app = express();
 app.use(express.json());
+app.use(cors());
 
-const octokit = new Octokit({
-    auth: process.env.GITHUB_TOKEN
-});
-
+const PORT = process.env.PORT || 5000;
 const OWNER = process.env.GITHUB_OWNER;
 const REPO = process.env.GITHUB_REPO;
+const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
-// Přidání nové schůzky
+// Diagnostické logy při spuštění serveru
+console.log('--- START SERVERU ---');
+console.log('GITHUB_OWNER:', process.env.GITHUB_OWNER);
+console.log('GITHUB_REPO:', process.env.GITHUB_REPO);
+console.log('GITHUB_TOKEN (první 5 znaků):', process.env.GITHUB_TOKEN ? process.env.GITHUB_TOKEN.slice(0, 5) : 'NEEXISTUJE');
+
+// Endpoint pro vytvoření schůzky
 app.post('/api/appointments', async (req, res) => {
     const { name, address, phone, appliance, note, date, time, technician } = req.body;
 
-    // Vytvoření souboru JSON s aktuální schůzkou
+    // Vytvoření názvu souboru a obsahu
     const fileName = `appointments/appointment_${Date.now()}.json`;
     const content = Buffer.from(JSON.stringify({ name, address, phone, appliance, note, date, time, technician }, null, 2)).toString('base64');
 
+    console.log('--- ZAČÍNÁ UKLÁDÁNÍ SCHŮZKY ---');
+    console.log('OWNER:', OWNER);
+    console.log('REPO:', REPO);
+    console.log('PATH:', fileName);
+    console.log('Obsah souboru (base64):', content);
+
     try {
-        await octokit.repos.createOrUpdateFileContents({
+        const response = await octokit.repos.createOrUpdateFileContents({
             owner: OWNER,
             repo: REPO,
             path: fileName,
             message: `Nová schůzka: ${name}`,
             content
         });
+
+        console.log('Úspěšně uloženo na GitHub! Odpověď:', response.data);
         res.status(201).json({ message: 'Schůzka uložena na GitHub.' });
     } catch (error) {
         console.error('Chyba při ukládání na GitHub:', error);
@@ -36,8 +49,9 @@ app.post('/api/appointments', async (req, res) => {
     }
 });
 
-// Načtení všech schůzek
+// Endpoint pro načtení všech schůzek
 app.get('/api/appointments', async (req, res) => {
+    console.log('--- ZAČÍNÁ NAČÍTÁNÍ SCHŮZEK ---');
     try {
         const response = await octokit.repos.getContent({
             owner: OWNER,
@@ -46,8 +60,11 @@ app.get('/api/appointments', async (req, res) => {
         });
 
         const files = response.data;
+        console.log('Nalezené soubory ve složce `appointments`:', files);
+
         const appointments = await Promise.all(
             files.map(async (file) => {
+                console.log('Načítám obsah souboru:', file.path);
                 const fileData = await octokit.repos.getContent({
                     owner: OWNER,
                     repo: REPO,
@@ -55,6 +72,7 @@ app.get('/api/appointments', async (req, res) => {
                 });
 
                 const content = Buffer.from(fileData.data.content, 'base64').toString();
+                console.log('Obsah souboru (decoded):', content);
                 return JSON.parse(content);
             })
         );
@@ -66,5 +84,7 @@ app.get('/api/appointments', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server běží na portu ${PORT}`));
+// Spuštění serveru
+app.listen(PORT, () => {
+    console.log(`Server běží na portu ${PORT}`);
+});
