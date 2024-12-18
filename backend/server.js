@@ -38,7 +38,9 @@ app.post('/api/appointments', async (req, res) => {
         existingAppointments.push({ name, address, phone, appliance, note, date, time, technician });  
 
         // Ulož aktualizovaný seznam schůzek  
+        console.log('Pokoušejí se uložit schůzky:', existingAppointments);  
         const content = Buffer.from(JSON.stringify(existingAppointments, null, 2)).toString('base64');  
+
         await octokit.repos.createOrUpdateFileContents({  
             owner: OWNER,  
             repo: REPO,  
@@ -46,6 +48,8 @@ app.post('/api/appointments', async (req, res) => {
             message: `Aktualizace schůzek`,  
             content: content  
         });  
+        
+        console.log('Schůzky byly úspěšně uloženy.');  
         res.status(201).json({ message: 'Schůzka uložena na GitHub.' });  
     } catch (error) {  
         console.error('Chyba při ukládání na GitHub:', error);  
