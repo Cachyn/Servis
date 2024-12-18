@@ -1,43 +1,40 @@
 const express = require('express');  
-const { Octokit } = require('@octokit/rest'); // Import Octokit pro připojení k GitHubu  
+const { Octokit } = require('@octokit/rest');   
 
-// Nastavení aplikace Express  
 const app = express();  
-app.use(express.json());  // Pro parsování JSON těla požadavků  
+app.use(express.json());   
 
-// Nastavení pro připojení k GitHubu prostřednictvím Octokit  
 const octokit = new Octokit({  
-    auth: process.env.GITHUB_TOKEN // Načtení tokenu z environment variables  
+    auth: process.env.GITHUB_TOKEN  
 });  
 
-// Načtení uživatelského jména a názvu repozitáře z environment variables  
-const OWNER = process.env.GITHUB_OWNER || 'Cachyn@seznam.cz'; // Vaše GitHub uživatelské jméno  
-const REPO = process.env.GITHUB_REPO || 'Servis';  // Název repozitáře  
+const OWNER = process.env.GITHUB_OWNER || 'Cachyn@seznam.cz';   
+const REPO = process.env.GITHUB_REPO || 'Servis';   
 
-// Logování environment variables  
+// Add logging for the environment variables here  
 console.log("GITHUB_TOKEN:", process.env.GITHUB_TOKEN ? '*****' : 'TOKEN NENÍ NASTAVEN');   
 console.log("GITHUB_OWNER:", OWNER);  
 console.log("GITHUB_REPO:", REPO);  
 
-// POST endpoint pro přidání nové schůzky  
 app.post('/api/appointments', async (req, res) => {  
+    console.log("Received request to add appointment:", req.body);  // Log request data  
+
     const { name, address, phone, appliance, note, date, time, technician } = req.body;  
 
     try {  
-        // Načti existující schůzky  
         const existingData = await octokit.repos.getContent({  
             owner: OWNER,  
             repo: REPO,  
             path: 'appointments.json'  
         });  
 
-        // Dekódování existujících schůzek  
+        // Log existing data retrieval  
+        console.log('Existing data retrieved from GitHub:', existingData);  
+        
         const existingAppointments = JSON.parse(Buffer.from(existingData.data.content, 'base64').toString());  
 
-        // Přidej novou schůzku  
         existingAppointments.push({ name, address, phone, appliance, note, date, time, technician });  
 
-        // Ulož aktualizovaný seznam schůzek  
         console.log('Pokoušejí se uložit schůzky:', existingAppointments);  
         const content = Buffer.from(JSON.stringify(existingAppointments, null, 2)).toString('base64');  
 
@@ -57,25 +54,23 @@ app.post('/api/appointments', async (req, res) => {
     }  
 });  
 
-// GET endpoint pro načítání všech schůzek  
 app.get('/api/appointments', async (req, res) => {  
     try {  
         const response = await octokit.repos.getContent({  
             owner: OWNER,  
             repo: REPO,  
-            path: 'appointments.json'  // Načítáme konkrétně appointments.json  
+            path: 'appointments.json'  
         });  
 
         const content = Buffer.from(response.data.content, 'base64').toString();  
-        const appointments = JSON.parse(content);  // Parsování obsahu  
+        const appointments = JSON.parse(content);  
 
-        res.json(appointments);  // Odeslání seznamu schůzek  
+        res.json(appointments);  
     } catch (error) {  
         console.error('Chyba při načítání schůzek:', error);  
         res.status(500).json({ message: 'Nepodařilo se načíst schůzky.' });  
     }  
 });  
 
-// Spuštění serveru na portu (buď na Render.com nebo lokálně)  
 const PORT = process.env.PORT || 3000;  
 app.listen(PORT, () => console.log(`Server běží na portu ${PORT}`));
