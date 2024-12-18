@@ -11,8 +11,8 @@ const octokit = new Octokit({
 });
 
 // Konstanty z environment proměnných
-const OWNER = process.env.GITHUB_OWNER; // GitHub uživatel
-const REPO = process.env.GITHUB_REPO; // Název repozitáře
+const OWNER = process.env.GITHUB_OWNER; // Cachyn
+const REPO = process.env.GITHUB_REPO; // Servis
 
 // Přidání nové schůzky
 app.post('/api/appointments', async (req, res) => {
