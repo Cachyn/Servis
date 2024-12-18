@@ -1,38 +1,29 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
 const { Octokit } = require('@octokit/rest');
 
 const app = express();
 app.use(express.json());
-app.use(cors());
 
-const PORT = process.env.PORT || 5000;
-const OWNER = process.env.GITHUB_OWNER;
-const REPO = process.env.GITHUB_REPO;
-const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+// Inicializace Octokit s GitHub tokenem
+const octokit = new Octokit({
+    auth: process.env.GITHUB_TOKEN
+});
 
-// Diagnostické logy při spuštění serveru
-console.log('--- START SERVERU ---');
-console.log('GITHUB_OWNER:', process.env.GITHUB_OWNER);
-console.log('GITHUB_REPO:', process.env.GITHUB_REPO);
-console.log('GITHUB_TOKEN (první 5 znaků):', process.env.GITHUB_TOKEN ? process.env.GITHUB_TOKEN.slice(0, 5) : 'NEEXISTUJE');
+// Konstanty z environment proměnných
+const OWNER = process.env.GITHUB_OWNER; // GitHub uživatel
+const REPO = process.env.GITHUB_REPO; // Název repozitáře
 
-// Endpoint pro vytvoření schůzky
+// Přidání nové schůzky
 app.post('/api/appointments', async (req, res) => {
     const { name, address, phone, appliance, note, date, time, technician } = req.body;
 
-    // Vytvoření názvu souboru a obsahu
+    // Název souboru pro schůzku
     const fileName = `appointments/appointment_${Date.now()}.json`;
     const content = Buffer.from(JSON.stringify({ name, address, phone, appliance, note, date, time, technician }, null, 2)).toString('base64');
 
-    console.log('--- ZAČÍNÁ UKLÁDÁNÍ SCHŮZKY ---');
-    console.log('OWNER:', OWNER);
-    console.log('REPO:', REPO);
-    console.log('PATH:', fileName);
-    console.log('Obsah souboru (base64):', content);
-
     try {
+        // Uložit schůzku na GitHub
         const response = await octokit.repos.createOrUpdateFileContents({
             owner: OWNER,
             repo: REPO,
@@ -41,30 +32,27 @@ app.post('/api/appointments', async (req, res) => {
             content
         });
 
-        console.log('Úspěšně uloženo na GitHub! Odpověď:', response.data);
-        res.status(201).json({ message: 'Schůzka uložena na GitHub.' });
+        console.log('GitHub Response:', response.data);
+        res.status(201).json({ message: 'Schůzka uložena na GitHub.', appointment: { name, address, phone, appliance, note, date, time, technician, id: Date.now() } });
     } catch (error) {
-        console.error('Chyba při ukládání na GitHub:', error);
-        res.status(500).json({ message: 'Nepodařilo se uložit schůzku.' });
+        console.error('GitHub Error:', error.message);
+        res.status(500).json({ message: 'Nepodařilo se uložit schůzku na GitHub.', error: error.message });
     }
 });
 
-// Endpoint pro načtení všech schůzek
+// Načtení všech schůzek
 app.get('/api/appointments', async (req, res) => {
-    console.log('--- ZAČÍNÁ NAČÍTÁNÍ SCHŮZEK ---');
     try {
+        // Získat seznam souborů z GitHub složky
         const response = await octokit.repos.getContent({
             owner: OWNER,
             repo: REPO,
             path: 'appointments'
         });
 
-        const files = response.data;
-        console.log('Nalezené soubory ve složce `appointments`:', files);
-
+        const files = response.data; // Seznam souborů
         const appointments = await Promise.all(
             files.map(async (file) => {
-                console.log('Načítám obsah souboru:', file.path);
                 const fileData = await octokit.repos.getContent({
                     owner: OWNER,
                     repo: REPO,
@@ -72,19 +60,32 @@ app.get('/api/appointments', async (req, res) => {
                 });
 
                 const content = Buffer.from(fileData.data.content, 'base64').toString();
-                console.log('Obsah souboru (decoded):', content);
                 return JSON.parse(content);
             })
         );
 
         res.json(appointments);
     } catch (error) {
-        console.error('Chyba při načítání schůzek:', error);
-        res.status(500).json({ message: 'Nepodařilo se načíst schůzky.' });
+        console.error('GitHub Error:', error.message);
+        res.status(500).json({ message: 'Nepodařilo se načíst schůzky z GitHubu.', error: error.message });
     }
 });
 
-// Spuštění serveru
-app.listen(PORT, () => {
-    console.log(`Server běží na portu ${PORT}`);
+// Endpoint pro kontrolu GitHub připojení
+app.get('/api/test-github', async (req, res) => {
+    try {
+        const response = await octokit.repos.get({
+            owner: OWNER,
+            repo: REPO
+        });
+
+        res.status(200).json({ message: 'GitHub připojení funguje.', repo: response.data });
+    } catch (error) {
+        console.error('GitHub Connection Error:', error.message);
+        res.status(500).json({ message: 'Chyba při připojení na GitHub.', error: error.message });
+    }
 });
+
+// Start serveru
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server běží na portu ${PORT}`));
